@@ -2,7 +2,7 @@
 
 A Roslyn source generator that connects [Spoke](https://github.com/Adam4lexander/Spoke) reactive fields to [OneJS](https://onejs.com) React UI.
 
-You mark a private Spoke field with `[OneJsBind]`, and the generator writes the members that OneJS's `useEventSync()` hook expects. You don't write them by hand:
+You mark a private Spoke `State` or `Trigger` field with `[OneJsBind]`, and the generator writes the members that OneJS's `useEventSync()` hook expects. You don't write them by hand:
 
 - **`State<T>`** becomes a read-only property and an `On<Name>Changed` event.
 - **`Trigger` and `Trigger<T>`** become a method that JS can call to fire the trigger.
@@ -53,15 +53,15 @@ public void CellClicked(int param)
 On the JS side, `useEventSync(source, "History")` reads `source.History` and re-renders when `OnHistoryChanged` fires:
 
 ```tsx
-import { Button, useEventSync } from "onejs-react"
+import { Button, View, useEventSync } from "onejs-react"
 
 function Board({ game }: { game: CS.TicTacToe }) {
     const history = useEventSync(game, "History")
     return (
-        <>
+        <View>
             <Button text="Start" onClick={() => game.StartButtonClicked()} />
             {/* ...render history, call game.CellClicked(i) on click... */}
-        </>
+        </View>
     )
 }
 ```
