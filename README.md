@@ -1,6 +1,6 @@
 # Spoke2OneJS
 
-A Roslyn source generator that connects [Spoke](https://github.com/slimshader/Spoke) reactive fields to [OneJS](https://onejs.com) React UI.
+A Roslyn source generator that connects [Spoke](https://github.com/Adam4lexander/Spoke) reactive fields to [OneJS](https://onejs.com) React UI.
 
 You mark a private Spoke field with `[OneJsBind]`, and the generator writes the members that OneJS's `useEventSync()` hook expects. You don't write them by hand:
 
@@ -117,6 +117,6 @@ When you update the generator, replace only the `.dll` and keep the existing `.m
 The sample compiles Spoke's engine-independent sources (`Spoke.Runtime` and `Spoke.Reactive`) from a sibling checkout, so clone Spoke next to this repo first:
 
 ```
-git clone https://github.com/slimshader/Spoke ../Spoke
+git clone https://github.com/Adam4lexander/Spoke ../Spoke
 dotnet run --project Spoke2OneJS.Sample
 ```
