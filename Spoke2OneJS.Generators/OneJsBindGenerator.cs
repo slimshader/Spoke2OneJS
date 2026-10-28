@@ -14,8 +14,8 @@ namespace Spoke2OneJS.Generators
     /// <list type="bullet">
     /// <item>whose type exposes a <c>Now</c> property (Spoke State&lt;T&gt;, Signal&lt;T&gt;, ...), generates
     /// <c>public T Name => _field.Now;</c> plus an <c>OnNameChanged</c> event forwarding to Subscribe/Unsubscribe,
-    /// which is the shape OneJS's useEventSync expects; with <c>OneJsBindMode.TwoWay</c> the property also gets
-    /// a setter calling <c>_field.Set(value)</c>;</item>
+    /// which is the shape OneJS's useEventSync expects; with <c>OneJsBindMode.TwoWay</c> it also generates
+    /// a <c>SetName(T value)</c> method calling <c>_field.Set(value)</c>;</item>
     /// <item>whose type has an <c>Invoke</c> method (Spoke Trigger, Trigger&lt;T&gt;), generates
     /// <c>public void Name(...) => _field.Invoke(...);</c> so JS can fire the trigger.</item>
     /// </list>
@@ -51,9 +51,9 @@ namespace Spoke2OneJS
     /// <summary>How a state field is exposed to OneJS.</summary>
     internal enum OneJsBindMode
     {
-        /// <summary>Read-only property: JS reads the value and listens for changes.</summary>
+        /// <summary>JS reads the value and listens for changes.</summary>
         OneWay,
-        /// <summary>Read-write property: the setter writes back to the state via <c>Set(value)</c>.</summary>
+        /// <summary>Also generates a <c>SetName(value)</c> method that writes back to the state via <c>Set(value)</c>.</summary>
         TwoWay,
     }
 }
@@ -283,19 +283,16 @@ namespace Spoke2OneJS
 
         static void RenderState(StringBuilder sb, Binding b, string indent, string mod)
         {
+            sb.AppendLine($"{indent}{mod} {b.ValueType} {b.Name} => {b.FieldName}.Now;");
+            sb.AppendLine();
             if (b.TwoWay)
             {
-                sb.AppendLine($"{indent}{mod} {b.ValueType} {b.Name}");
+                sb.AppendLine($"{indent}{mod} void Set{b.Name}({b.ValueType} value)");
                 sb.AppendLine($"{indent}{{");
-                sb.AppendLine($"{indent}    get => {b.FieldName}.Now;");
-                sb.AppendLine($"{indent}    set => {b.FieldName}.Set(value);");
+                sb.AppendLine($"{indent}    {b.FieldName}.Set(value);");
                 sb.AppendLine($"{indent}}}");
+                sb.AppendLine();
             }
-            else
-            {
-                sb.AppendLine($"{indent}{mod} {b.ValueType} {b.Name} => {b.FieldName}.Now;");
-            }
-            sb.AppendLine();
             sb.AppendLine($"{indent}{mod} event global::System.Action On{b.Name}Changed");
             sb.AppendLine($"{indent}{{");
             sb.AppendLine($"{indent}    add");

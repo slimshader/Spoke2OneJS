@@ -10,7 +10,7 @@ namespace Sample
         [OneJsBind("History")]
         private State<ImmutableArray<string[]>> _history = State.Create(ImmutableArray.Create<string[]>().Add(new string[9]));
 
-        [OneJsBind(OneJsBindMode.TwoWay)] // name derived from field: Step, with a setter
+        [OneJsBind(OneJsBindMode.TwoWay)] // name derived from field: Step, plus SetStep(int)
         private State<int> _step = State.Create(0);
 
         [OneJsBind]
@@ -42,7 +42,7 @@ namespace Sample
             game.OnHistoryChanged += () => Console.WriteLine($"History changed: {game.History.Length}");
             game.OnStepChanged += () => Console.WriteLine($"Step changed: {game.Step}");
             game.Play();
-            game.Step = 10;
+            game.SetStep(10);
             Console.WriteLine($"Step after set: {game.Step}");
             game.StartButtonClicked();
             game.CellClicked(4);

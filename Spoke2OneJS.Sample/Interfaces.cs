@@ -19,7 +19,7 @@ namespace Sample
             board.OnScoreChanged += () => Console.WriteLine($"Score changed: {board.Score}");
             board.OnTitleChanged += () => Console.WriteLine($"Title changed: {board.Title}");
             ((IState<int>)board._score).Set(7);
-            board.Title = "Round 2";
+            board.SetTitle("Round 2");
         }
     }
 }

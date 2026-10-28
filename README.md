@@ -4,7 +4,7 @@ A Roslyn source generator that connects [Spoke](https://github.com/Adam4lexander
 
 You mark a private Spoke `State`, `ISignal`, `IState` or `Trigger` field with `[OneJsBind]`, and the generator writes the members that OneJS's `useEventSync()` hook expects. You don't write them by hand:
 
-- **`State<T>`, `ISignal<T>` and `IState<T>`** become a property and an `On<Name>Changed` event. The property is read-only by default; with two-way binding (`State<T>` and `IState<T>` only) it also gets a setter that writes back to the state.
+- **`State<T>`, `ISignal<T>` and `IState<T>`** become a read-only property and an `On<Name>Changed` event. With two-way binding (`State<T>` and `IState<T>` only) you also get a `Set<Name>(value)` method that writes back to the state.
 - **`Trigger` and `Trigger<T>`** become a method that JS can call to fire the trigger.
 
 ## Example
@@ -42,10 +42,11 @@ public event Action OnHistoryChanged
     remove { _history.Unsubscribe(value); }
 }
 
-public bool SoundEnabled
+public bool SoundEnabled => _soundEnabled.Now;
+
+public void SetSoundEnabled(bool value)
 {
-    get => _soundEnabled.Now;
-    set => _soundEnabled.Set(value);
+    _soundEnabled.Set(value);
 }
 
 public event Action OnSoundEnabledChanged
@@ -65,7 +66,7 @@ public void CellClicked(int param)
 }
 ```
 
-On the JS side, `useEventSync(source, "History")` reads `source.History` and re-renders when `OnHistoryChanged` fires. A two-way property can also be assigned from JS. Here `SoundEnabled` drives a [`Switch`](https://onejs.com/docs/onejs-ui/components#switch), and toggling it writes back to the `IState<bool>`:
+On the JS side, `useEventSync(source, "History")` reads `source.History` and re-renders when `OnHistoryChanged` fires. For a two-way binding, JS writes back through the generated setter. Here `SoundEnabled` drives a [`Switch`](https://onejs.com/docs/onejs-ui/components#switch), and its `onChange` calls `SetSoundEnabled`, which writes to the `IState<bool>`:
 
 ```tsx
 import { Button, View, useEventSync } from "onejs-react"
@@ -76,7 +77,7 @@ function Board({ game }: { game: CS.TicTacToe }) {
     const soundEnabled = useEventSync(game, "SoundEnabled")
     return (
         <View>
-            <Switch label="Sound" value={soundEnabled} onChange={on => (game.SoundEnabled = on)} />
+            <Switch label="Sound" value={soundEnabled} onChange={on => game.SetSoundEnabled(on)} />
             <Button text="Start" onClick={() => game.StartButtonClicked()} />
             {/* ...render history, call game.CellClicked(i) on click... */}
         </View>
@@ -89,7 +90,7 @@ function Board({ game }: { game: CS.TicTacToe }) {
 | Field type | Generated members |
 |---|---|
 | `State<T>`, `IState<T>`, `ISignal<T>`, `Memo<T>`, or any type with a readable `Now` property | `public T Name => _field.Now;` and `public event Action OnNameChanged`, which forwards to `Subscribe` and `Unsubscribe` |
-| `State<T>` or `IState<T>` with `OneJsBindMode.TwoWay` | The same, but the property also has `set => _field.Set(value);` |
+| `State<T>` or `IState<T>` with `OneJsBindMode.TwoWay` | The same, plus `public void SetName(T value)`, which calls `_field.Set(value)` |
 | `Trigger` | `public void Name()`, which calls `_field.Invoke()` |
 | `Trigger<T>` | `public void Name(T param)`, which calls `_field.Invoke(param)` |
 
@@ -98,7 +99,7 @@ If the field's type has a `Now` property, it is bound as a state. Otherwise, if 
 ### Rules
 
 - **Naming:** `[OneJsBind("Name")]` sets the member name. Without an argument, the name comes from the field: the `_` or `m_` prefix is removed and the first letter is capitalized, so `_startButtonClicked` becomes `StartButtonClicked`.
-- **Binding mode:** pass `OneJsBindMode.TwoWay` to add a setter: `[OneJsBind(OneJsBindMode.TwoWay)]` or `[OneJsBind("Name", OneJsBindMode.TwoWay)]`. The default is `OneJsBindMode.OneWay` (read-only). Two-way binding needs a `Set(T)` method on the field's type, which `State<T>` and `IState<T>` have; read-only types such as `ISignal<T>` and `Memo<T>` can only be bound one-way.
+- **Binding mode:** pass `OneJsBindMode.TwoWay` to also generate a `Set<Name>(value)` method: `[OneJsBind(OneJsBindMode.TwoWay)]` or `[OneJsBind("Name", OneJsBindMode.TwoWay)]`. The default is `OneJsBindMode.OneWay` (no setter). Two-way binding needs a `Set(T)` method on the field's type, which `State<T>` and `IState<T>` have; read-only types such as `ISignal<T>` and `Memo<T>` can only be bound one-way.
 - **Partial types:** the containing type, and every type it is nested in, must be `partial`.
 - **Static fields:** a static field produces static members.
 - **Supported containing types:** classes, structs and records, including generic and nested ones.
