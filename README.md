@@ -4,7 +4,7 @@ A Roslyn source generator that connects [Spoke](https://github.com/Adam4lexander
 
 You mark a private Spoke `State`, `ISignal`, `IState` or `Trigger` field with `[OneJsBind]`, and the generator writes the members that OneJS's `useEventSync()` hook expects. You don't write them by hand:
 
-- **`State<T>`** becomes a property and an `On<Name>Changed` event. The property is read-only by default; with two-way binding it also gets a setter that writes back to the state.
+- **`State<T>`, `ISignal<T>` and `IState<T>`** become a property and an `On<Name>Changed` event. The property is read-only by default; with two-way binding (`State<T>` and `IState<T>` only) it also gets a setter that writes back to the state.
 - **`Trigger` and `Trigger<T>`** become a method that JS can call to fire the trigger.
 
 ## Example
@@ -17,11 +17,11 @@ using Spoke2OneJS;
 public partial class TicTacToe
 {
     [OneJsBind("History")]
-    private State<ImmutableArray<string[]>> _history =
+    private ISignal<ImmutableArray<string[]>> _history =
         State.Create(ImmutableArray.Create<string[]>().Add(new string[9]));
 
-    [OneJsBind("PlayerName", OneJsBindMode.TwoWay)]
-    private State<string> _playerName = State.Create("Player 1");
+    [OneJsBind("SoundEnabled", OneJsBindMode.TwoWay)]
+    private IState<bool> _soundEnabled = State.Create(true);
 
     [OneJsBind]
     private Trigger _startButtonClicked = Trigger.Create();
@@ -42,16 +42,16 @@ public event Action OnHistoryChanged
     remove { _history.Unsubscribe(value); }
 }
 
-public string PlayerName
+public bool SoundEnabled
 {
-    get => _playerName.Now;
-    set => _playerName.Set(value);
+    get => _soundEnabled.Now;
+    set => _soundEnabled.Set(value);
 }
 
-public event Action OnPlayerNameChanged
+public event Action OnSoundEnabledChanged
 {
-    add    { _playerName.Subscribe(value); }
-    remove { _playerName.Unsubscribe(value); }
+    add    { _soundEnabled.Subscribe(value); }
+    remove { _soundEnabled.Unsubscribe(value); }
 }
 
 public void StartButtonClicked()
@@ -65,17 +65,18 @@ public void CellClicked(int param)
 }
 ```
 
-On the JS side, `useEventSync(source, "History")` reads `source.History` and re-renders when `OnHistoryChanged` fires. A two-way property can also be assigned from JS:
+On the JS side, `useEventSync(source, "History")` reads `source.History` and re-renders when `OnHistoryChanged` fires. A two-way property can also be assigned from JS. Here `SoundEnabled` drives a [`Switch`](https://onejs.com/docs/onejs-ui/components#switch), and toggling it writes back to the `IState<bool>`:
 
 ```tsx
-import { Button, TextField, View, useEventSync } from "onejs-react"
+import { Button, View, useEventSync } from "onejs-react"
+import { Switch } from "onejs-ui"
 
 function Board({ game }: { game: CS.TicTacToe }) {
     const history = useEventSync(game, "History")
-    const playerName = useEventSync(game, "PlayerName")
+    const soundEnabled = useEventSync(game, "SoundEnabled")
     return (
         <View>
-            <TextField value={playerName} onChange={e => (game.PlayerName = e.value)} />
+            <Switch label="Sound" value={soundEnabled} onChange={on => (game.SoundEnabled = on)} />
             <Button text="Start" onClick={() => game.StartButtonClicked()} />
             {/* ...render history, call game.CellClicked(i) on click... */}
         </View>
