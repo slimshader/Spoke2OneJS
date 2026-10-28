@@ -2,7 +2,7 @@
 
 A Roslyn source generator that connects [Spoke](https://github.com/Adam4lexander/Spoke) reactive fields to [OneJS](https://onejs.com) React UI.
 
-You mark a private Spoke `State` or `Trigger` field with `[OneJsBind]`, and the generator writes the members that OneJS's `useEventSync()` hook expects. You don't write them by hand:
+You mark a private Spoke `State`, `ISignal`, `IState` or `Trigger` field with `[OneJsBind]`, and the generator writes the members that OneJS's `useEventSync()` hook expects. You don't write them by hand:
 
 - **`State<T>`** becomes a property and an `On<Name>Changed` event. The property is read-only by default; with two-way binding it also gets a setter that writes back to the state.
 - **`Trigger` and `Trigger<T>`** become a method that JS can call to fire the trigger.
@@ -87,8 +87,8 @@ function Board({ game }: { game: CS.TicTacToe }) {
 
 | Field type | Generated members |
 |---|---|
-| `State<T>`, or any type with a readable `Now` property | `public T Name => _field.Now;` and `public event Action OnNameChanged`, which forwards to `Subscribe` and `Unsubscribe` |
-| `State<T>` with `OneJsBindMode.TwoWay` | The same, but the property also has `set => _field.Set(value);` |
+| `State<T>`, `IState<T>`, `ISignal<T>`, `Memo<T>`, or any type with a readable `Now` property | `public T Name => _field.Now;` and `public event Action OnNameChanged`, which forwards to `Subscribe` and `Unsubscribe` |
+| `State<T>` or `IState<T>` with `OneJsBindMode.TwoWay` | The same, but the property also has `set => _field.Set(value);` |
 | `Trigger` | `public void Name()`, which calls `_field.Invoke()` |
 | `Trigger<T>` | `public void Name(T param)`, which calls `_field.Invoke(param)` |
 
@@ -97,7 +97,7 @@ If the field's type has a `Now` property, it is bound as a state. Otherwise, if 
 ### Rules
 
 - **Naming:** `[OneJsBind("Name")]` sets the member name. Without an argument, the name comes from the field: the `_` or `m_` prefix is removed and the first letter is capitalized, so `_startButtonClicked` becomes `StartButtonClicked`.
-- **Binding mode:** pass `OneJsBindMode.TwoWay` to add a setter: `[OneJsBind(OneJsBindMode.TwoWay)]` or `[OneJsBind("Name", OneJsBindMode.TwoWay)]`. The default is `OneJsBindMode.OneWay` (read-only). Two-way binding needs a `Set(T)` method on the field's type, which `State<T>` has; read-only types such as `Memo<T>` can only be bound one-way.
+- **Binding mode:** pass `OneJsBindMode.TwoWay` to add a setter: `[OneJsBind(OneJsBindMode.TwoWay)]` or `[OneJsBind("Name", OneJsBindMode.TwoWay)]`. The default is `OneJsBindMode.OneWay` (read-only). Two-way binding needs a `Set(T)` method on the field's type, which `State<T>` and `IState<T>` have; read-only types such as `ISignal<T>` and `Memo<T>` can only be bound one-way.
 - **Partial types:** the containing type, and every type it is nested in, must be `partial`.
 - **Static fields:** a static field produces static members.
 - **Supported containing types:** classes, structs and records, including generic and nested ones.
@@ -111,7 +111,7 @@ If the field's type has a `Now` property, it is bound as a state. Otherwise, if 
 | `OJS002` | The field's type has neither a readable `Now` property nor an `Invoke` method |
 | `OJS003` | The bind name is not a valid C# identifier |
 | `OJS004` | `OneJsBindMode.TwoWay` was used on a trigger |
-| `OJS005` | `OneJsBindMode.TwoWay` was used on a type without a `Set(T)` method, such as `Memo<T>` |
+| `OJS005` | `OneJsBindMode.TwoWay` was used on a type without a `Set(T)` method, such as `ISignal<T>` or `Memo<T>` |
 
 ## Unity setup
 

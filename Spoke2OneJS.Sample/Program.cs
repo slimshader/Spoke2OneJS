@@ -47,6 +47,7 @@ namespace Sample
             game.StartButtonClicked();
             game.CellClicked(4);
             Console.WriteLine(TicTacToe.Nested<string>.Value ?? "<null>");
+            Scoreboard.Run();
         }
     }
 }
