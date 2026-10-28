@@ -66,7 +66,7 @@ public void CellClicked(int param)
 }
 ```
 
-On the JS side, `useEventSync(source, "History")` reads `source.History` and re-renders when `OnHistoryChanged` fires. For a two-way binding, JS writes back through the generated setter. Here `SoundEnabled` drives a [`Switch`](https://onejs.com/docs/onejs-ui/components#switch), and its `onChange` calls `SetSoundEnabled`, which writes to the `IState<bool>`:
+On the JS side, `useEventSync(source, "History")` reads `source.History` and re-renders when `OnHistoryChanged` fires. For a two-way binding, JS writes back through the generated setter. Here `SoundEnabled` drives a [`Switch`](https://onejs.com/docs/onejs-ui/components#switch), and the generated `SetSoundEnabled` is passed straight to its `onChange`, writing to the `IState<bool>`:
 
 ```tsx
 import { Button, View, useEventSync } from "onejs-react"
@@ -77,7 +77,7 @@ function Board({ game }: { game: CS.TicTacToe }) {
     const soundEnabled = useEventSync(game, "SoundEnabled")
     return (
         <View>
-            <Switch label="Sound" value={soundEnabled} onChange={on => game.SetSoundEnabled(on)} />
+            <Switch label="Sound" value={soundEnabled} onChange={game.SetSoundEnabled} />
             <Button text="Start" onClick={() => game.StartButtonClicked()} />
             {/* ...render history, call game.CellClicked(i) on click... */}
         </View>
