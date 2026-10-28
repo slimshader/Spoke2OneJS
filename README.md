@@ -4,7 +4,7 @@ A Roslyn source generator that connects [Spoke](https://github.com/Adam4lexander
 
 You mark a private Spoke `State` or `Trigger` field with `[OneJsBind]`, and the generator writes the members that OneJS's `useEventSync()` hook expects. You don't write them by hand:
 
-- **`State<T>`** becomes a read-only property and an `On<Name>Changed` event.
+- **`State<T>`** becomes a property and an `On<Name>Changed` event. The property is read-only by default; with two-way binding it also gets a setter that writes back to the state.
 - **`Trigger` and `Trigger<T>`** become a method that JS can call to fire the trigger.
 
 ## Example
@@ -19,6 +19,9 @@ public partial class TicTacToe
     [OneJsBind("History")]
     private State<ImmutableArray<string[]>> _history =
         State.Create(ImmutableArray.Create<string[]>().Add(new string[9]));
+
+    [OneJsBind("PlayerName", OneJsBindMode.TwoWay)]
+    private State<string> _playerName = State.Create("Player 1");
 
     [OneJsBind]
     private Trigger _startButtonClicked = Trigger.Create();
@@ -39,6 +42,18 @@ public event Action OnHistoryChanged
     remove { _history.Unsubscribe(value); }
 }
 
+public string PlayerName
+{
+    get => _playerName.Now;
+    set => _playerName.Set(value);
+}
+
+public event Action OnPlayerNameChanged
+{
+    add    { _playerName.Subscribe(value); }
+    remove { _playerName.Unsubscribe(value); }
+}
+
 public void StartButtonClicked()
 {
     _startButtonClicked.Invoke();
@@ -50,15 +65,17 @@ public void CellClicked(int param)
 }
 ```
 
-On the JS side, `useEventSync(source, "History")` reads `source.History` and re-renders when `OnHistoryChanged` fires:
+On the JS side, `useEventSync(source, "History")` reads `source.History` and re-renders when `OnHistoryChanged` fires. A two-way property can also be assigned from JS:
 
 ```tsx
-import { Button, View, useEventSync } from "onejs-react"
+import { Button, TextField, View, useEventSync } from "onejs-react"
 
 function Board({ game }: { game: CS.TicTacToe }) {
     const history = useEventSync(game, "History")
+    const playerName = useEventSync(game, "PlayerName")
     return (
         <View>
+            <TextField value={playerName} onChange={e => (game.PlayerName = e.value)} />
             <Button text="Start" onClick={() => game.StartButtonClicked()} />
             {/* ...render history, call game.CellClicked(i) on click... */}
         </View>
@@ -71,6 +88,7 @@ function Board({ game }: { game: CS.TicTacToe }) {
 | Field type | Generated members |
 |---|---|
 | `State<T>`, or any type with a readable `Now` property | `public T Name => _field.Now;` and `public event Action OnNameChanged`, which forwards to `Subscribe` and `Unsubscribe` |
+| `State<T>` with `OneJsBindMode.TwoWay` | The same, but the property also has `set => _field.Set(value);` |
 | `Trigger` | `public void Name()`, which calls `_field.Invoke()` |
 | `Trigger<T>` | `public void Name(T param)`, which calls `_field.Invoke(param)` |
 
@@ -79,6 +97,7 @@ If the field's type has a `Now` property, it is bound as a state. Otherwise, if 
 ### Rules
 
 - **Naming:** `[OneJsBind("Name")]` sets the member name. Without an argument, the name comes from the field: the `_` or `m_` prefix is removed and the first letter is capitalized, so `_startButtonClicked` becomes `StartButtonClicked`.
+- **Binding mode:** pass `OneJsBindMode.TwoWay` to add a setter: `[OneJsBind(OneJsBindMode.TwoWay)]` or `[OneJsBind("Name", OneJsBindMode.TwoWay)]`. The default is `OneJsBindMode.OneWay` (read-only). Two-way binding needs a `Set(T)` method on the field's type, which `State<T>` has; read-only types such as `Memo<T>` can only be bound one-way.
 - **Partial types:** the containing type, and every type it is nested in, must be `partial`.
 - **Static fields:** a static field produces static members.
 - **Supported containing types:** classes, structs and records, including generic and nested ones.
@@ -91,6 +110,8 @@ If the field's type has a `Now` property, it is bound as a state. Otherwise, if 
 | `OJS001` | The containing type is not `partial` |
 | `OJS002` | The field's type has neither a readable `Now` property nor an `Invoke` method |
 | `OJS003` | The bind name is not a valid C# identifier |
+| `OJS004` | `OneJsBindMode.TwoWay` was used on a trigger |
+| `OJS005` | `OneJsBindMode.TwoWay` was used on a type without a `Set(T)` method, such as `Memo<T>` |
 
 ## Unity setup
 

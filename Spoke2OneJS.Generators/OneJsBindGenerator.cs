@@ -14,7 +14,8 @@ namespace Spoke2OneJS.Generators
     /// <list type="bullet">
     /// <item>whose type exposes a <c>Now</c> property (Spoke State&lt;T&gt;, Signal&lt;T&gt;, ...), generates
     /// <c>public T Name => _field.Now;</c> plus an <c>OnNameChanged</c> event forwarding to Subscribe/Unsubscribe,
-    /// which is the shape OneJS's useEventSync expects;</item>
+    /// which is the shape OneJS's useEventSync expects; with <c>OneJsBindMode.TwoWay</c> the property also gets
+    /// a setter calling <c>_field.Set(value)</c>;</item>
     /// <item>whose type has an <c>Invoke</c> method (Spoke Trigger, Trigger&lt;T&gt;), generates
     /// <c>public void Name(...) => _field.Invoke(...);</c> so JS can fire the trigger.</item>
     /// </list>
@@ -41,7 +42,19 @@ namespace Spoke2OneJS
     {
         public OneJsBindAttribute() { }
         public OneJsBindAttribute(string name) { Name = name; }
+        public OneJsBindAttribute(OneJsBindMode mode) { Mode = mode; }
+        public OneJsBindAttribute(string name, OneJsBindMode mode) { Name = name; Mode = mode; }
         public string Name { get; }
+        public OneJsBindMode Mode { get; }
+    }
+
+    /// <summary>How a state field is exposed to OneJS.</summary>
+    internal enum OneJsBindMode
+    {
+        /// <summary>Read-only property: JS reads the value and listens for changes.</summary>
+        OneWay,
+        /// <summary>Read-write property: the setter writes back to the state via <c>Set(value)</c>.</summary>
+        TwoWay,
     }
 }
 ";
@@ -59,6 +72,16 @@ namespace Spoke2OneJS
         static readonly DiagnosticDescriptor InvalidName = new(
             "OJS003", "Invalid bind name",
             "'{0}' is not a valid C# identifier for a [OneJsBind] property",
+            "Spoke2OneJS", DiagnosticSeverity.Error, isEnabledByDefault: true);
+
+        static readonly DiagnosticDescriptor TwoWayOnTrigger = new(
+            "OJS004", "Two-way binding on a trigger",
+            "Field '{0}' is a trigger and cannot use OneJsBindMode.TwoWay; two-way binding applies to state fields only",
+            "Spoke2OneJS", DiagnosticSeverity.Error, isEnabledByDefault: true);
+
+        static readonly DiagnosticDescriptor NoSetMethod = new(
+            "OJS005", "Field type is not writable",
+            "Field '{0}' of type '{1}' cannot use OneJsBindMode.TwoWay: the type has no 'Set({2})' method",
             "Spoke2OneJS", DiagnosticSeverity.Error, isEnabledByDefault: true);
 
         public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -96,7 +119,21 @@ namespace Spoke2OneJS
             if (nowType == null && invoke == null)
                 return Result.Error(NoNowProperty, location, field.Name, field.Type.ToDisplayString());
 
-            var name = ctx.Attributes[0].ConstructorArguments.FirstOrDefault().Value as string;
+            string? name = null;
+            var twoWay = false;
+            foreach (var arg in ctx.Attributes[0].ConstructorArguments)
+            {
+                if (arg.Value is string s)
+                    name = s;
+                else if (arg.Kind == TypedConstantKind.Enum)
+                    twoWay = arg.Value is int mode && mode == 1; // OneJsBindMode.TwoWay
+            }
+
+            if (twoWay && nowType == null)
+                return Result.Error(TwoWayOnTrigger, location, field.Name);
+            if (twoWay && !HasSetMethod(field.Type, nowType!))
+                return Result.Error(NoSetMethod, location, field.Name, field.Type.ToDisplayString(), nowType!.ToDisplayString());
+
             if (string.IsNullOrEmpty(name))
                 name = DeriveName(field.Name);
             if (!SyntaxFacts.IsValidIdentifier(name!) || SyntaxFacts.GetKeywordKind(name!) != SyntaxKind.None)
@@ -122,6 +159,7 @@ namespace Spoke2OneJS
                     p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + " " + EscapeIdentifier(p.Name))),
                 InvokeArguments: invoke == null ? "" : string.Join(", ", invoke.Parameters.Select(p => EscapeIdentifier(p.Name))),
                 Name: name!,
+                TwoWay: twoWay,
                 IsStatic: field.IsStatic), null);
         }
 
@@ -141,6 +179,20 @@ namespace Spoke2OneJS
                 .SelectMany(t => t.GetMembers("Now"))
                 .OfType<IPropertySymbol>()
                 .FirstOrDefault(p => !p.IsStatic && p.GetMethod != null && p.Parameters.IsEmpty);
+        }
+
+        static bool HasSetMethod(ITypeSymbol type, ITypeSymbol valueType)
+        {
+            IEnumerable<ITypeSymbol> candidates = new[] { type };
+            for (var b = type.BaseType; b != null; b = b.BaseType)
+                candidates = candidates.Append(b);
+            candidates = candidates.Concat(type.AllInterfaces);
+
+            return candidates
+                .SelectMany(t => t.GetMembers("Set"))
+                .OfType<IMethodSymbol>()
+                .Any(m => !m.IsStatic && m.Parameters.Length == 1 &&
+                          SymbolEqualityComparer.Default.Equals(m.Parameters[0].Type, valueType));
         }
 
         static IMethodSymbol? FindInvokeMethod(ITypeSymbol type)
@@ -231,7 +283,18 @@ namespace Spoke2OneJS
 
         static void RenderState(StringBuilder sb, Binding b, string indent, string mod)
         {
-            sb.AppendLine($"{indent}{mod} {b.ValueType} {b.Name} => {b.FieldName}.Now;");
+            if (b.TwoWay)
+            {
+                sb.AppendLine($"{indent}{mod} {b.ValueType} {b.Name}");
+                sb.AppendLine($"{indent}{{");
+                sb.AppendLine($"{indent}    get => {b.FieldName}.Now;");
+                sb.AppendLine($"{indent}    set => {b.FieldName}.Set(value);");
+                sb.AppendLine($"{indent}}}");
+            }
+            else
+            {
+                sb.AppendLine($"{indent}{mod} {b.ValueType} {b.Name} => {b.FieldName}.Now;");
+            }
             sb.AppendLine();
             sb.AppendLine($"{indent}{mod} event global::System.Action On{b.Name}Changed");
             sb.AppendLine($"{indent}{{");
@@ -261,6 +324,7 @@ namespace Spoke2OneJS
             string InvokeParameters,
             string InvokeArguments,
             string Name,
+            bool TwoWay,
             bool IsStatic);
 
         sealed record DiagnosticInfo(DiagnosticDescriptor Descriptor, LocationInfo? Location, EquatableArray Args)

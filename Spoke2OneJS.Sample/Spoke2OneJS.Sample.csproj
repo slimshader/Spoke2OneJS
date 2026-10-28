@@ -7,7 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Real Spoke sources (engine-free assemblies) from the sibling checkout. -->
-    <Compile Include="..\..\Spoke\Runtime\Spoke.Runtime\**\*.cs;..\..\Spoke\Runtime\Spoke.Reactive\**\*.cs" LinkBase="Spoke" />
+    <Compile Include="..\..\Spoke\Spoke.Runtime\**\*.cs;..\..\Spoke\Spoke.Reactive\**\*.cs" LinkBase="Spoke" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Spoke2OneJS.Generators\Spoke2OneJS.Generators.csproj"
